@@ -24,8 +24,8 @@ load(here('analysis/data/derived_data/site_config.rda'))
 # set year
 yr = 2020
 
-for(yr in 2011:2018) {
-  cat(paste("Working on", yr, "\n\n"))
+# for(yr in 2011:2018) {
+#   cat(paste("Working on", yr, "\n\n"))
 
 # load and filter biological data
 bio_df = read_rds(here('analysis/data/derived_data',
@@ -34,7 +34,7 @@ bio_df = read_rds(here('analysis/data/derived_data',
 
 # load processed detection histories
 load(here('analysis/data/derived_data/PITcleanr',
-          paste0('UC_Steelhead_', yr, '.rda')))
+          paste0('UC_Coho_', yr, '.rda')))
 
 # filter to keep only the observations you want to keep
 filter_obs = prepped_ch %>%
@@ -66,7 +66,7 @@ writeDABOM(file_name = basic_modNm,
 
 # filepath for specific JAGS model code for species and year
 mod_path = here('analysis/model_files',
-                paste0('PRA_Steelhead_', yr, '.txt'))
+                paste0('PRA_Coho_', yr, '.txt'))
 
 # writes species and year specific jags code
 fixNoFishNodes(init_file = basic_modNm,
@@ -114,17 +114,17 @@ dabom_mod = coda.samples(jags,
 
 save(dabom_mod, jags_data, filter_obs,
      file = here("analysis/data/derived_data/model_fits",
-                 paste0('PRA_DABOM_Steelhead_', yr,'.rda')))
+                 paste0('PRA_DABOM_Coho_', yr,'.rda')))
 
 rm(dabom_mod, jags_data, filter_obs)
-}
+# }
 
 #------------------------------------------------------------------------------
 # diagnostics
 #------------------------------------------------------------------------------
 # load model run
 load(here("analysis/data/derived_data/model_fits",
-          paste0('PRA_DABOM_Steelhead_', yr,'.rda')))
+          paste0('PRA_DABOM_Coho_', yr,'.rda')))
 
 # using mcmcr package
 library(mcmcr)

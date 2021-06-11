@@ -29,11 +29,11 @@ load(here('analysis/data/derived_data',
 
 # load compressed detections and biological data
 load(here('analysis/data/derived_data/PITcleanr',
-          paste0('UC_Steelhead_', yr, '.rda')))
+          paste0('UC_Coho_', yr, '.rda')))
 
 # load JAGS MCMC results
 load(here("analysis/data/derived_data/model_fits",
-          paste0('PRA_DABOM_Steelhead_', yr,'.rda')))
+          paste0('PRA_DABOM_Coho_', yr,'.rda')))
 
 
 # estimate final spawning location
@@ -121,7 +121,7 @@ end_date = paste0(yr, '0531')
 
 # start with PIT-tag based reascension data
 org_escape = queryPITtagData(damPIT = 'PRA',
-                             spp = "Steelhead",
+                             spp = "Coho",
                              start_date = start_date,
                              end_date = end_date) %>%
   mutate(SpawnYear = yr) %>%
@@ -142,7 +142,7 @@ org_escape = queryPITtagData(damPIT = 'PRA',
          reasc_rate_se = sqrt(reasc_rate * (1 - reasc_rate) / tot_tags)) %>%
   # add window counts
   bind_cols(getWindowCounts(dam = 'PRD',
-                            spp = "Steelhead",
+                            spp = "Coho",
                             start_date = start_date,
                             end_date = end_date) %>%
               summarise_at(vars(win_cnt),
@@ -198,7 +198,7 @@ escape_summ = escape_post %>%
                 round,
                 digits = 2)) %>%
   arrange(desc(origin), location) %>%
-  tibble::add_column(species = "Steelhead",
+  tibble::add_column(species = "Coho",
                      spawn_year = yr,
                      .before = 0)
 
@@ -276,7 +276,7 @@ pop_summ = escape_post %>%
                 round,
                 digits = 2)) %>%
   arrange(desc(origin), group) %>%
-  tibble::add_column(species = "Steelhead",
+  tibble::add_column(species = "Coho",
                      spawn_year = yr,
                      .before = 0)
 
@@ -526,4 +526,4 @@ save_list = c(list('Population Escapement' = pop_summ %>%
 
 writexl::write_xlsx(x = save_list,
                     path = here('outgoing/estimates',
-                                paste0('UC_Steelhead_', yr, '_', format(Sys.Date(), '%Y%m%d'), '.xlsx')))
+                                paste0('UC_Coho_', yr, '_', format(Sys.Date(), '%Y%m%d'), '.xlsx')))
