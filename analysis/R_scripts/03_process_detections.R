@@ -18,7 +18,7 @@ library(here)
 load(here('analysis/data/derived_data/site_config.rda'))
 
 # which spawn year are we dealing with?
-yr = 2020
+yr = 2019
 
 # for(yr in 2011:2020) {
 
@@ -33,49 +33,17 @@ dbl_tag = bio_df %>%
 
 #-----------------------------------------------------------------
 # start date is June 1 of previous year
-start_date = paste0(yr - 1, '0601')
+start_date = paste0(yr, '0901')
 # when is the last possible observation date?
-max_obs_date = paste0(yr, "0531")
+max_obs_date = paste0(yr+1, "0531")
 
 # get raw observations from PTAGIS
 # These come from running a saved query on the list of tags to be used
 ptagis_file = here("analysis/data/raw_data/PTAGIS",
-                   paste0("UC_Sthd_", yr, "_CTH.csv"))
+                   paste0("UC_Coho_", yr, "_CTH.csv"))
 
 # recode the PTAGIS observations of double tagged fish so that the tag code matches the TagID (not TagOther)
 ptagis_obs = readCTH(ptagis_file)
-
-# add some observations from Colockum (CLK), a temporary antenna that only operated in some years
-if(yr %in% c(2015, 2018) ) {
-  clk_obs = read_csv(here('analysis/data/raw_data/WDFW/CLK_observations.csv')) %>%
-    rename(tag_code = `Tag Code`) %>%
-    mutate(event_type_name = "Observation",
-           event_site_code_value = 'CLK',
-           antenna_id = 'A1',
-           antenna_group_configuration_value = 100,
-           cth_count = 1) %>%
-    mutate(time = if_else(is.na(time),
-                          hms::hms(seconds = 0,
-                                   minutes = 0,
-                                   hours = 12),
-                          time)) %>%
-    mutate(event_date_time_value = paste(date, time)) %>%
-    mutate(across(event_date_time_value,
-                  lubridate::mdy_hms)) %>%
-    filter(year(event_date_time_value) == yr) %>%
-    select(-date, -time) %>%
-    # get the origin info for these fish
-    left_join(ptagis_obs %>%
-                select(tag_code,
-                       mark_species_name,
-                       mark_rear_type_name) %>%
-                distinct())
-
-  ptagis_obs %<>%
-    bind_rows(clk_obs)
-
-  rm(clk_obs)
-}
 
 if(nrow(dbl_tag) > 0) {
   ptagis_obs %<>%
@@ -109,14 +77,14 @@ prepped_ch = PITcleanr::prepWrapper(ptagis_file = ptagis_obs,
                                     max_obs_date = max_obs_date,
                                     ignore_event_vs_release = T,
                                     save_file = T,
-                                    file_name = here('outgoing/PITcleanr', paste0('UC_Steelhead_', yr, '.xlsx')))
+                                    file_name = here('outgoing/PITcleanr', paste0('UC_Coho_', yr, '.xlsx')))
 
 
 
 # save some stuff
 save(parent_child, configuration, start_date, bio_df, prepped_ch,
      file = here('analysis/data/derived_data/PITcleanr',
-                 paste0('UC_Steelhead_', yr, '.rda')))
+                 paste0('UC_Coho_', yr, '.rda')))
 
 
 # rm(start_date, bio_df, prepped_ch,
