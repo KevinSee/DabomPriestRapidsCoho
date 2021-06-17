@@ -19,22 +19,21 @@ library(here)
 # read in biological data from trap
 list.files(here('analysis/data/raw_data/YakimaNation'))
 
-bio_df = excel_sheets(here('analysis/data/raw_data/YakimaNation/prc.xlsx')) %>%
+bio_df = excel_sheets(here('analysis/data/raw_data/YakimaNation/PRCTAGLISTALLYEARS.xlsx')) %>%
   as.list() %>%
+  extract(1:2) %>%
   rlang::set_names() %>%
-  map_df(.id = 'trap_date',
+  map_df(.id = 'year',
          .f = function(x) {
-           data_df = read_excel(here('analysis/data/raw_data/YakimaNation/prc.xlsx'),
-                                x)
+           data_df = read_excel(here('analysis/data/raw_data/YakimaNation/PRCTAGLISTALLYEARS.xlsx'),
+                                x) %>%
+             clean_names()
            return(data_df)
          }) %>%
-  rename(tag_code = `PIT Tag`) %>%
-  mutate(across(tag_code,
-                str_remove,
-                "^\\*")) %>%
-  mutate(trap_date = mdy(paste(trap_date, "2020", sep = "."))) %>%
+  rename(tag_code = pit_tag,
+         trap_date = date) %>%
   mutate(year = year(trap_date)) %>%
-  select(year, tag_code, everything())
+  select(year, tag_code, trap_date, sex, dna)
 
 
 # any duplicated tags?
@@ -43,10 +42,15 @@ bio_df %>%
   arrange(year, tag_code, trap_date) %>%
   tabyl(year)
 
-# fish with more than one tag?
+# dna sample associated with more than one tag?
 bio_df %>%
+  group_by(year) %>%
   filter(dna %in% dna[duplicated(dna)]) %>%
+  ungroup() %>%
+  arrange(dna, year, tag_code) %>%
   tabyl(year)
+
+# clearly some duplicates in 2019. Not sure why, but we'll ignore the dna number
 
 #-----------------------------------------------------------------
 # save as Excel file
@@ -78,14 +82,14 @@ tag_list = bio_df %>%
   })
 
 # save tags to upload to PTAGIS
-
-# for(yr in names(tag_list)) {
-#   write_delim(tag_list[[yr]],
-#               file = here('analysis/data/raw_data/tag_lists',
-#                           paste0('UC_Coho_Tags_', yr, '.txt')),
-#               delim = '\n',
-#               col_names = F)
-# }
+# all years
+for(yr in names(tag_list)) {
+  write_delim(tag_list[[yr]],
+              file = here('analysis/data/raw_data/tag_lists',
+                          paste0('UC_Coho_Tags_', yr, '.txt')),
+              delim = '\n',
+              col_names = F)
+}
 
 # just write the latest year
 write_delim(tag_list[[as.character(max_yr)]],
