@@ -37,24 +37,39 @@ bio_df = excel_sheets(here('analysis/data/raw_data/YakimaNation/PRCTAGLISTALLYEA
 
 
 # any duplicated tags?
-bio_df %>%
+dup_tags = bio_df %>%
   filter(tag_code %in% tag_code[duplicated(tag_code)]) %>%
-  arrange(year, tag_code, trap_date) %>%
+  arrange(year, tag_code, trap_date)
+
+# how many duplicate tags by year?
+dup_tags %>%
+  select(year, tag_code) %>%
+  distinct() %>%
   tabyl(year)
 
-# dna sample associated with more than one tag?
-bio_df %>%
+# 3 duplicate tags in 2019; 9 duplicate tags in 2020; 4 cases total where "sex changed"
+
+# dna sample numbers associated with more than one tag?
+dup_dna_codes = bio_df %>%
+  select(year, dna, tag_code) %>%
   group_by(year) %>%
   filter(dna %in% dna[duplicated(dna)]) %>%
-  ungroup() %>%
-  arrange(dna, year, tag_code) %>%
-  tabyl(year)
+  arrange(year, dna, tag_code)  # %>% tabyl(year)
 
-# clearly some duplicates in 2019. Not sure why, but we'll ignore the dna number
+# lots of dna codes associate with multiple tags in 2019
 
 #-----------------------------------------------------------------
-# save as Excel file
+# save some files
 #-----------------------------------------------------------------
+# write out duplicated tags
+write_csv(dup_tags,
+          file = here('analysis/data/derived_data',
+                      'PRA_Duplicated_Tags.csv'))
+
+write_csv(dup_dna_codes,
+          file = here('analysis/data/derived_data',
+                      'PRA_Reused_DNA_Codes.csv'))
+
 bio_df %>%
   split(list(.$year)) %>%
   write_xlsx(path = here('analysis/data/derived_data',
@@ -92,11 +107,11 @@ for(yr in names(tag_list)) {
 }
 
 # just write the latest year
-write_delim(tag_list[[as.character(max_yr)]],
-            file = here('analysis/data/raw_data/tag_lists',
-                        paste0('UC_Coho_Tags_', max_yr, '.txt')),
-            delim = '\n',
-            col_names = F)
+# write_delim(tag_list[[as.character(max_yr)]],
+#             file = here('analysis/data/raw_data/tag_lists',
+#                         paste0('UC_Coho_Tags_', max_yr, '.txt')),
+#             delim = '\n',
+#             col_names = F)
 
 # save biological data for later
 write_rds(bio_df,
