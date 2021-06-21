@@ -23,17 +23,17 @@ yr = 2019
 # for(yr in 2011:2020) {
 
 # load and file biological data
-bio_df = read_rds(here('analysis/data/derived_data/Bio_Data_2011_2020.rds')) %>%
+bio_df = read_rds(here('analysis/data/derived_data/Bio_Data_2019_2020.rds')) %>%
   filter(year == yr)
 
 # any double-tagged fish?
-dbl_tag = bio_df %>%
-  filter(!is.na(tag_other))
+# dbl_tag = bio_df %>%
+#   filter(!is.na(tag_other))
 
 
 #-----------------------------------------------------------------
 # start date is June 1 of previous year
-start_date = paste0(yr, '0901')
+start_date = paste0(yr, '0601')
 # when is the last possible observation date?
 max_obs_date = paste0(yr+1, "0531")
 
@@ -45,28 +45,30 @@ ptagis_file = here("analysis/data/raw_data/PTAGIS",
 # recode the PTAGIS observations of double tagged fish so that the tag code matches the TagID (not TagOther)
 ptagis_obs = readCTH(ptagis_file)
 
-if(nrow(dbl_tag) > 0) {
-  ptagis_obs %<>%
-    left_join(dbl_tag %>%
-                mutate(fish_id = 1:n()) %>%
-                select(fish_id, starts_with("tag")) %>%
-                mutate(use_tag = tag_code) %>%
-                pivot_longer(cols = starts_with("tag"),
-                             names_to = "source",
-                             values_to = "tag_code") %>%
-                select(tag_code, use_tag),
-              by = "tag_code") %>%
-    rowwise() %>%
-    mutate(tag_code = if_else(!is.na(use_tag),
-                              use_tag,
-                              tag_code)) %>%
-    ungroup() %>%
-    select(-use_tag) %>%
-    distinct()
-}
+# if(nrow(dbl_tag) > 0) {
+#   ptagis_obs %<>%
+#     left_join(dbl_tag %>%
+#                 mutate(fish_id = 1:n()) %>%
+#                 select(fish_id, starts_with("tag")) %>%
+#                 mutate(use_tag = tag_code) %>%
+#                 pivot_longer(cols = starts_with("tag"),
+#                              names_to = "source",
+#                              values_to = "tag_code") %>%
+#                 select(tag_code, use_tag),
+#               by = "tag_code") %>%
+#     rowwise() %>%
+#     mutate(tag_code = if_else(!is.na(use_tag),
+#                               use_tag,
+#                               tag_code)) %>%
+#     ungroup() %>%
+#     select(-use_tag) %>%
+#     distinct()
+# }
 
 # any orphaned or disowned tags?
-qcTagHistory(ptagis_obs, T)
+qc_cth = qcTagHistory(ptagis_obs, T)
+
+# single orphan tag in 2019; also single orphan tag in 2020
 
 # compress and process those observations with PITcleanr
 prepped_ch = PITcleanr::prepWrapper(ptagis_file = ptagis_obs,
@@ -77,12 +79,10 @@ prepped_ch = PITcleanr::prepWrapper(ptagis_file = ptagis_obs,
                                     max_obs_date = max_obs_date,
                                     ignore_event_vs_release = T,
                                     save_file = T,
-                                    file_name = here('outgoing/PITcleanr', paste0('UC_Coho_', yr, '.xlsx')))
-
-
+                                    file_name = here('analysis/outgoing/PITcleanr', paste0('UC_Coho_', yr, '.xlsx')))
 
 # save some stuff
-save(parent_child, configuration, start_date, bio_df, prepped_ch,
+save(parent_child, configuration, start_date, bio_df, qc_cth, prepped_ch,
      file = here('analysis/data/derived_data/PITcleanr',
                  paste0('UC_Coho_', yr, '.rda')))
 
@@ -172,19 +172,33 @@ tag_summ %>%
   janitor::adorn_pct_formatting() %>%
   arrange(desc(n))
 
-# age comp in each branch, by sex
+# sex comp in each branch
 tag_summ %>%
-  filter(!is.na(final_age)) %>%
+  filter(!is.na(sex)) %>%
   ggplot(aes(x = branch_nm,
-             fill = as.ordered(final_age))) +
+             fill = as.ordered(sex))) +
   geom_bar(position = position_fill()) +
-  facet_wrap(~ sex) +
   theme_bw() +
   theme(axis.text.x = element_text(angle = 45,
                                    hjust = 1)) +
   labs(x = "Branch",
-       y = "Percent of Tags",
-       fill = "Age")
+       y = "Proportion of Tags",
+       fill = "Sex")
+
+
+# age comp in each branch, by sex
+# tag_summ %>%
+#   filter(!is.na(final_age)) %>%
+#   ggplot(aes(x = branch_nm,
+#              fill = as.ordered(final_age))) +
+#   geom_bar(position = position_fill()) +
+#   facet_wrap(~ sex) +
+#   theme_bw() +
+#   theme(axis.text.x = element_text(angle = 45,
+#                                    hjust = 1)) +
+#   labs(x = "Branch",
+#        y = "Percent of Tags",
+#        fill = "Age")
 
 
 # look at run timing between branches
@@ -192,10 +206,28 @@ tag_summ %>%
   ggplot(aes(x = trap_date,
              color = branch_nm,
              fill = branch_nm)) +
-  geom_density(alpha = 0.2) +
+  geom_density(alpha = 0.1) +
   theme_bw() +
   scale_color_brewer(palette = 'Set1',
                      name = "Branch") +
   scale_fill_brewer(palette = 'Set1',
                     name = "Branch") +
   labs(x = "Trap Date at Priest Rapids")
+
+# cumulative run timing by branch
+tag_summ %>%
+  select(branch_nm, trap_date) %>%
+  arrange(branch_nm, trap_date) %>%
+  group_by(branch_nm, trap_date) %>%
+  summarise(n = n()) %>%
+  mutate(n = cumsum(n)) %>%
+  ungroup() %>%
+  ggplot(aes(x = trap_date,
+             y = n,
+             color = branch_nm)) +
+  geom_line() +
+  theme_bw() +
+  labs(x = "Trap Date at Priest Rapids",
+       y = "Number of Fish",
+       color = "Branch",
+       title = "Cumulative Run Timing")
