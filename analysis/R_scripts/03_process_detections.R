@@ -1,7 +1,7 @@
 # Author: Kevin See
 # Purpose: clean PTAGIS data with PITcleanr
 # Created: 4/27/20
-# Last Modified: 6/8/21
+# Last Modified: 6/21/21
 # Notes:
 
 #-----------------------------------------------------------------
@@ -18,9 +18,7 @@ library(here)
 load(here('analysis/data/derived_data/site_config.rda'))
 
 # which spawn year are we dealing with?
-yr = 2019
-
-# for(yr in 2011:2020) {
+yr = 2020
 
 # load and file biological data
 bio_df = read_rds(here('analysis/data/derived_data/Bio_Data_2019_2020.rds')) %>%
