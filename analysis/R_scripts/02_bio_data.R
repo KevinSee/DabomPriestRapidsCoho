@@ -48,6 +48,15 @@ dup_tags %>%
   tabyl(year)
 
 # 3 duplicate tags in 2019; 9 duplicate tags in 2020; 4 cases total where "sex changed"
+dup_tags %>%
+  group_by(tag_code) %>%
+  mutate(trap_id = 1:n()) %>%
+  ungroup() %>%
+  select(-dna, -trap_date) %>%
+  pivot_wider(names_from = trap_id,
+              values_from = sex) %>%
+  filter(`1` != `2`)
+
 
 # dna sample numbers associated with more than one tag?
 dup_dna_codes = bio_df %>%
