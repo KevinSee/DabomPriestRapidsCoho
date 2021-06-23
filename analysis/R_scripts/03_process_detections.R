@@ -220,12 +220,18 @@ tag_summ %>%
   summarise(n = n()) %>%
   mutate(n = cumsum(n)) %>%
   ungroup() %>%
+  group_by(branch_nm) %>%
+  mutate(prop = n / max(n)) %>%
+  ungroup() %>%
   ggplot(aes(x = trap_date,
-             y = n,
+             y = prop,
              color = branch_nm)) +
   geom_line() +
   theme_bw() +
+  theme(legend.position = "bottom") +
+  scale_color_brewer(palette = 'Set1',
+                     name = "Branch") +
   labs(x = "Trap Date at Priest Rapids",
-       y = "Number of Fish",
-       color = "Branch",
+       # y = "Number of Fish",
+       y = "Proportion of Run",
        title = "Cumulative Run Timing")
