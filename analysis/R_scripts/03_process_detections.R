@@ -223,15 +223,24 @@ tag_summ %>%
   group_by(branch_nm) %>%
   mutate(prop = n / max(n)) %>%
   ungroup() %>%
+  pivot_longer(cols = c(n, prop),
+               names_to = "type",
+               values_to = "value") %>%
+  mutate(type = recode(type,
+                       "n" = "Cumulative Number of Tags",
+                       "prop" = "Cumulative Proportion of Tags")) %>%
   ggplot(aes(x = trap_date,
-             y = prop,
+             y = value,
              color = branch_nm)) +
-  geom_line() +
+  geom_line(lwd = 1) +
+  # geom_step(lwd = 1) +
   theme_bw() +
-  theme(legend.position = "bottom") +
+  facet_wrap(~ type,
+             ncol = 1,
+             scales = "free_y") +
+  theme(legend.position = "bottom",
+        axis.title.y = element_blank()) +
   scale_color_brewer(palette = 'Set1',
                      name = "Branch") +
   labs(x = "Trap Date at Priest Rapids",
-       # y = "Number of Fish",
-       y = "Proportion of Run",
        title = "Cumulative Run Timing")
