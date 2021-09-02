@@ -1,8 +1,8 @@
 # Author: Kevin See
 # Purpose: Develop configuration file for DABOM
 # Created: 4/1/20
-# Last Modified: 6/7/21
-# Notes:
+# Last Modified: 9/2/21
+# Notes: Rick Alford at Yakima Nation told me that the 3 antennas set up as MSHB0 no longer exist, and that METH is not an MRR site (for Coho, maybe others; it might be a release site). So the one antenna at MSH (#00) should be listed as MSHB0 and METH should be dropped from configuration.
 
 # install some needed packages
 install.packages(c("tidyverse",
@@ -22,7 +22,7 @@ devtools::install_github("BiomarkABS/STADEM")
 devtools::install_github("BiomarkABS/PITcleanr")
 devtools::install_github("BiomarkABS/DABOM")
 
-#------------------------------,-----------------------------------
+#-----------------------------------------------------------------
 # load needed libraries
 library(PITcleanr)
 library(tidyverse)
@@ -152,17 +152,23 @@ configuration = org_config %>%
          node = if_else(site_code %in% c('SSC', '18N', 'MHB', 'M3R', 'MWF'),
                         'MRCA0',
                         node),
-         node = if_else(site_code == 'MSH' & antenna_id %in% c('02', '03'),
-                        'MSHB0',
+         # node = if_else(site_code == 'MSH' & antenna_id %in% c('02', '03'),
+         #                'MSHB0',
+         #                node),
+         # node = if_else(site_code == 'MSH' & antenna_id %in% c('01'),
+         #                'MSHA0',
+         #                node),
+         # node = if_else(site_code == 'MSH' & antenna_id == '00',
+         #                'METHB0',
+         #                node),
+         # node = if_else(site_code == 'METH',
+         #                'METHA0',
+         #                node),
+         node = if_else(site_code == "MSH",
+                        "MSHB0",
                         node),
-         node = if_else(site_code == 'MSH' & antenna_id %in% c('01'),
-                        'MSHA0',
-                        node),
-         node = if_else(site_code == 'MSH' & antenna_id == '00',
-                        'METHB0',
-                        node),
-         node = if_else(site_code == 'METH',
-                        'METHA0',
+         node = if_else(site_code == "METH",
+                        "METHB0",
                         node),
          node = if_else(site_code == 'LLC' & config_id == 100,
                         if_else(antenna_id == 'D3',
@@ -281,6 +287,10 @@ configuration = org_config %>%
          rkm_total = if_else(site_code == "METH",
                              926,
                              rkm_total))
+
+# drop site METH (Yakima says it's a release site, not a MRR site for adults)
+configuration %<>%
+  filter(site_code != "METH")
 
 # Node network for DABOM
 
@@ -419,9 +429,10 @@ parent_child = sites_sf %>%
                                   c("WEH", "FST", 'WEA'),
                                   c("EHL", 'ENA', 'ENL'),
                                   c("EHL", 'MAD', 'ENL'),
-                                  c("METH", "MRW", "MRC"),
-                                  c("SCP", "METH", "MSH"),
+                                  # c("METH", "MRW", "MRC"),
+                                  # c("SCP", "METH", "MSH"),
                                   c("SCP", 'MSH', 'MRC'),
+                                  c("MSH", "MRW", "MRC"),
                                   c("WHS", "OKC", "ZSL"),
                                   c("WHS", "ZSL", "OKL"),
                                   c("ZSL", 'OKV', 'OKC'),

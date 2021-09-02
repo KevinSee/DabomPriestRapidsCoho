@@ -1,7 +1,7 @@
 # Author: Kevin See
 # Purpose: clean PTAGIS data with PITcleanr
 # Created: 4/27/20
-# Last Modified: 6/21/21
+# Last Modified: 9/2/21
 # Notes:
 
 #-----------------------------------------------------------------
@@ -18,7 +18,7 @@ library(here)
 load(here('analysis/data/derived_data/site_config.rda'))
 
 # which spawn year are we dealing with?
-yr = 2020
+yr = 2019
 
 # load and file biological data
 bio_df = read_rds(here('analysis/data/derived_data/Bio_Data_2019_2020.rds')) %>%
@@ -76,7 +76,7 @@ prepped_ch = PITcleanr::prepWrapper(ptagis_file = ptagis_obs,
                                     min_obs_date = start_date,
                                     max_obs_date = max_obs_date,
                                     ignore_event_vs_release = T,
-                                    save_file = T,
+                                    save_file = F,
                                     file_name = here('analysis/outgoing/PITcleanr', paste0('UC_Coho_', yr, '.xlsx')))
 
 # save some stuff
@@ -95,6 +95,46 @@ save(parent_child, configuration, start_date, bio_df, qc_cth, prepped_ch,
 # NEXT STEPS
 #-------------------------------------------
 # open that Excel file, and filter on the column user_keep_obs, looking for blanks. Fill in each row with TRUE or FALSE, depending on whether that observation should be kept or not. The column auto_keep_obs provides a suggestion, but the biologist's best expert judgment should be used based on detection dates, detection locations before and after, etc.
+
+#-----------------------------------------------------------------
+# Read in local biologist keep_obs
+#-----------------------------------------------------------------
+load(here('analysis/data/derived_data/PITcleanr',
+          paste0('UC_Coho_', yr, '.rda')))
+
+file_nm = if_else(yr == 2020,
+                  "UC_Coho_2020_RA_FINAL.xlsx",
+                  if_else(yr == 2019,
+                          "UC_Coho_2019_KM_FINAL.xlsx",
+                          NA_character_))
+
+ch_df = read_excel(here('analysis/data/raw_data/YakimaNation',
+                        file_nm))
+
+identical(dim(prepped_ch), dim(ch_df))
+
+ch_df %<>%
+  # recode METHB0 as MSHB0
+  mutate(node = recode(node,
+                       "METHB0" = "MSHB0"))
+
+ch_df %>%
+  filter(auto_keep_obs != user_keep_obs) %>%
+  select(tag_code) %>%
+  distinct() %>%
+  slice(4) %>%
+  # slice_sample(n = 1) %>%
+  left_join(ch_df) %>%
+  select(tag_code:max_det,
+         direction:user_keep_obs)
+
+
+# replace PITcleanr output with what was sent back by local biologist
+prepped_ch = ch_df
+
+save(parent_child, configuration, start_date, bio_df, qc_cth, prepped_ch,
+     file = here('analysis/data/derived_data/PITcleanr',
+                 paste0('UC_Coho_', yr, '.rda')))
 
 #-----------------------------------------------------------------
 # tag summaries
