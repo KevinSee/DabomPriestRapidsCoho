@@ -1,7 +1,7 @@
 # Author: Kevin See
 # Purpose: clean PTAGIS data with PITcleanr
 # Created: 4/27/20
-# Last Modified: 9/2/21
+# Last Modified: 9/8/21
 # Notes:
 
 #-----------------------------------------------------------------
@@ -118,6 +118,46 @@ ch_df %<>%
   mutate(node = recode(node,
                        "METHB0" = "MSHB0"))
 
+# do some comparisons between the two prepped data.frames
+comp_df = prepped_ch %>%
+  left_join(ch_df %>%
+              select(tag_code:min_det,
+                     ends_with("keep_obs")) %>%
+              rename(auto = auto_keep_obs,
+                     user = user_keep_obs))
+
+
+# need to fix some of the user_keep_obs that were entered
+fix_list = list(no_prob_tags = comp_df %>%
+                  select(-auto) %>%
+                  anti_join(comp_df %>%
+                              filter(auto_keep_obs != user) %>%
+                              select(tag_code) %>%
+                              distinct()),
+                prob_tags = comp_df %>%
+                  select(-auto) %>%
+                  inner_join(comp_df %>%
+                               filter(auto_keep_obs != user) %>%
+                               select(tag_code) %>%
+                               distinct()))
+
+writexl::write_xlsx(fix_list,
+                    path = here('analysis/data/derived_data/PITcleanr', paste0('UC_Coho_', yr, '_KS.xlsx')),
+                    col_names = T,
+                    format_headers = T)
+
+
+# read back in the fixed file (based on my interpretation of the Yakama Nation's user_keep_obs)
+ch_df = excel_sheets(here('analysis/data/derived_data/PITcleanr', paste0('UC_Coho_', yr, '_KS.xlsx'))) %>%
+  as.list() %>%
+  map_df(.f = function(x) {
+    read_excel(path = here('analysis/data/derived_data/PITcleanr', paste0('UC_Coho_', yr, '_KS.xlsx')),
+               sheet = x)
+  }) %>%
+  select(-user) %>%
+  arrange(tag_code, slot)
+
+
 ch_df %>%
   filter(auto_keep_obs != user_keep_obs) %>%
   select(tag_code) %>%
@@ -155,8 +195,9 @@ tag_summ %>%
 
 # where are tags assigned?
 janitor::tabyl(tag_summ, spawn_node) %>%
-  arrange(desc(n)) %>%
-  janitor::adorn_totals()
+  # arrange(desc(n)) %>%
+  janitor::adorn_totals() %>%
+  janitor::adorn_pct_formatting()
 
 # preliminary estimate of node efficiency
 node_eff = prepped_ch %>%
