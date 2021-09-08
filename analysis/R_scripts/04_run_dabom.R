@@ -1,7 +1,7 @@
 # Author: Kevin See
 # Purpose: prep and run DABOM
 # Created: 4/1/20
-# Last Modified: 6/9/2021
+# Last Modified: 9/2/2021
 # Notes:
 
 #-----------------------------------------------------------------
@@ -24,12 +24,12 @@ load(here('analysis/data/derived_data/site_config.rda'))
 # set year
 yr = 2020
 
-# for(yr in 2011:2018) {
+# for(yr in 2019:2020) {
 #   cat(paste("Working on", yr, "\n\n"))
 
 # load and filter biological data
 bio_df = read_rds(here('analysis/data/derived_data',
-                       'Bio_Data_2011_2020.rds')) %>%
+                       'Bio_Data_2019_2020.rds')) %>%
   filter(year == yr)
 
 # load processed detection histories
@@ -47,7 +47,8 @@ filter_obs = prepped_ch %>%
 # determine origin of each fish
 fish_origin = bio_df %>%
   filter(tag_code %in% unique(filter_obs$tag_code)) %>%
-  select(tag_code, origin) %>%
+  mutate(origin = "H") %>%
+  select(tag_code, all_of("origin")) %>%
   distinct()
 
 # file path to the default and initial model
