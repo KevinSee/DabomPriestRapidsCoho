@@ -1,7 +1,7 @@
 # Author: Kevin See
 # Purpose: prep and run DABOM
 # Created: 4/1/20
-# Last Modified: 9/2/2021
+# Last Modified: 9/8/2021
 # Notes:
 
 #-----------------------------------------------------------------
@@ -93,8 +93,8 @@ jags_data = createJAGSinputs(filter_ch = filter_obs,
 jags_params = setSavedParams(model_file = mod_path,
                              time_varying = F)
 
-
-# test running the model
+#--------------------------------------
+# Initial burn-in for the model
 jags = jags.model(mod_path,
                   data = jags_data,
                   inits = init_fnc,
@@ -103,16 +103,14 @@ jags = jags.model(mod_path,
                   n.chains = 4,
                   n.adapt = 5000)
 
-
-#--------------------------------------
-# test the MCMC outcome and summary functions
+# take posterior samples
 dabom_mod = coda.samples(jags,
                          jags_params,
                          # n.iter = 10)
                          n.iter = 5000,
                          thin = 10)
 
-
+# save results
 save(dabom_mod, jags_data, filter_obs,
      file = here("analysis/data/derived_data/model_fits",
                  paste0('PRA_DABOM_Coho_', yr,'.rda')))
@@ -170,7 +168,7 @@ janitor::tabyl(convg_df,
 
 # look at parameters that have not converged
 convg_df %>%
-  # filter(!converged) %>%
+  filter(!converged) %>%
   left_join(rhat_df) %>%
   arrange(esr)
 
