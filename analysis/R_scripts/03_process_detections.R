@@ -30,7 +30,7 @@ bio_df = read_rds(here('analysis/data/derived_data/Bio_Data_2019_2020.rds')) %>%
 
 
 #-----------------------------------------------------------------
-# start date is June 1 of previous year
+# start date is June 1 of year
 start_date = paste0(yr, '0601')
 # when is the last possible observation date?
 max_obs_date = paste0(yr+1, "0531")
