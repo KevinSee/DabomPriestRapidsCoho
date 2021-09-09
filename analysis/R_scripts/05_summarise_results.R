@@ -31,18 +31,16 @@ load(here('analysis/data/derived_data',
 load(here('analysis/data/derived_data/PITcleanr',
           paste0('UC_Coho_', yr, '.rda')))
 
+# load JAGS MCMC results
+load(here("analysis/data/derived_data/model_fits",
+          paste0('PRA_DABOM_Coho_', yr,'.rda')))
+
 # add origin info (all hatchery)
 bio_df %<>%
   filter(tag_code %in% unique(filter_obs$tag_code)) %>%
   mutate(origin = "H",
          origin = factor(origin,
                          levels = c("W", "H")))
-
-
-# load JAGS MCMC results
-load(here("analysis/data/derived_data/model_fits",
-          paste0('PRA_DABOM_Coho_', yr,'.rda')))
-
 
 # estimate final spawning location
 tag_summ = summarizeTagData(filter_obs,
