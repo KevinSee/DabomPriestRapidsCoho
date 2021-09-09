@@ -738,7 +738,7 @@ save_list = c(list('Population Escapement' = pop_summ %>%
               bio_list)
 
 # filter for only hatchery results, drop origin as a column
-save_list %>%
+save_list %<>%
   map(.f = function(x) {
     if("origin" %in% names(x)) {
       x %<>%
@@ -750,5 +750,5 @@ save_list %>%
 
 # save results as an Excel file
 writexl::write_xlsx(x = save_list,
-                    path = here('outgoing/estimates',
+                    path = here('analysis/outgoing/estimates',
                                 paste0('UC_Coho_', yr, '_', format(Sys.Date(), '%Y%m%d'), '.xlsx')))
