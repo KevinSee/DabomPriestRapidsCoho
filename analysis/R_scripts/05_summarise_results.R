@@ -1,7 +1,7 @@
 # Author: Kevin See
 # Purpose: summarize DABOM results
 # Created: 4/1/20
-# Last Modified: 6/11/21
+# Last Modified: 9/9/21
 # Notes:
 
 #-----------------------------------------------------------------
@@ -30,6 +30,14 @@ load(here('analysis/data/derived_data',
 # load compressed detections and biological data
 load(here('analysis/data/derived_data/PITcleanr',
           paste0('UC_Coho_', yr, '.rda')))
+
+# add origin info (all hatchery)
+bio_df %<>%
+  filter(tag_code %in% unique(filter_obs$tag_code)) %>%
+  mutate(origin = "H",
+         origin = factor(origin,
+                         levels = c("W", "H")))
+
 
 # load JAGS MCMC results
 load(here("analysis/data/derived_data/model_fits",
@@ -98,6 +106,13 @@ detect_summ %>%
 trans_df = compileTransProbs_PRA(dabom_mod,
                                  parent_child)
 
+trans_df %<>%
+  mutate(origin = recode(origin,
+                         "2" = "H",
+                         "1" = "W"),
+         origin = factor(origin,
+                         levels = c("W", "H")))
+
 # # summarize transition probabilities
 # trans_summ = trans_df %>%
 #   group_by(origin, param) %>%
@@ -115,8 +130,8 @@ trans_df = compileTransProbs_PRA(dabom_mod,
 
 #-----------------------------------------------------------------
 # total escapement past Priest, by origin
-start_date = paste0(yr, '0901')
-end_date = paste0(yr+1, '0531')
+start_date = paste0(yr, '0801')
+end_date = paste0(yr, '1231')
 
 
 # start with PIT-tag based reascension data
@@ -153,7 +168,8 @@ org_escape = queryPITtagData(damPIT = 'PRA',
          adj_win_cnt_se = tot_win_cnt * reasc_rate_se) %>%
   bind_cols(bio_df %>%
               group_by(origin) %>%
-              summarise(n_tags = n_distinct(tag_code)) %>%
+              summarise(n_tags = n_distinct(tag_code),
+                        .groups = "drop") %>%
               mutate(prop = n_tags / sum(n_tags),
                      prop_se = sqrt((prop * (1 - prop)) / sum(n_tags)))) %>%
   rowwise() %>%
@@ -166,9 +182,10 @@ org_escape = queryPITtagData(damPIT = 'PRA',
 # translate movement estimates to escapement
 escape_post = trans_df %>%
   left_join(org_escape %>%
-              mutate(origin = recode(origin,
-                                     "H" = 2,
-                                     "W" = 1)) %>%
+              full_join(expand(org_escape, Species, SpawnYear, origin)) %>%
+              mutate(across(starts_with("tot_escp"),
+                            replace_na,
+                            0)) %>%
               group_by(origin) %>%
               summarise(tot_esc_samp = map2(tot_escp,
                                             tot_escp_se,
@@ -202,24 +219,14 @@ escape_summ = escape_post %>%
                      spawn_year = yr,
                      .before = 0)
 
-
-
 #-----------------------------------------------------------------
 # create some summaries of biological information
-
 bio_summ = tag_summ %>%
   group_by(group,
            origin,
-           sex,
-           age) %>%
+           sex) %>%
   summarise(n_tags = n_distinct(tag_code),
-            mean_FL = mean(fork_length, na.rm = T),
-            sd_FL = sd(fork_length, na.rm = T),
             .groups = "drop") %>%
-  full_join(expand(tag_summ,
-                   group,
-                   origin,
-                   nesting(sex, age))) %>%
   mutate(across(n_tags,
                 replace_na,
                 0)) %>%
@@ -228,7 +235,7 @@ bio_summ = tag_summ %>%
   ungroup() %>%
   mutate(prop = n_tags / tot_tags,
          prop_se = sqrt((prop * (1 - prop)) / (tot_tags))) %>%
-  arrange(group, origin, sex, age)
+  arrange(group, origin, sex)
 
 # population (or branch) level summary of escapement
 pop_summ = escape_post %>%
@@ -296,7 +303,13 @@ full_summ = pop_summ %>%
   ungroup() %>%
   mutate(across(est,
                 ~ as.integer(round(est)))) %>%
-  select(species:origin, sex, age, n_tags, mean_FL, starts_with("prop"), starts_with("est"))
+  select(species:origin,
+         sex,
+         #age,
+         n_tags,
+         # mean_FL,
+         starts_with("prop"),
+         starts_with("est"))
 
 #------------------------------------------------------------
 # sex proportions by origin
@@ -374,96 +387,96 @@ sex_all_summ = sex_origin_summ %>%
   mutate(across(est,
                 round))
 
-#------------------------------------------------------------
-# age proportions by origin
-age_origin_summ = pop_summ %>%
-  # filter(group != "WellsPool") %>%
-  select(species, spawn_year, group,
-         origin, escape = mean, escp_se = sd) %>%
-  left_join(tag_summ %>%
-              group_by(group, origin, age) %>%
-              summarise(n_tags = n_distinct(tag_code[!is.na(age)]),
-                        .groups = "drop") %>%
-              filter(!is.na(age)) %>%
-              full_join(expand(tag_summ,
-                               group,
-                               origin, age)) %>%
-              mutate(across(n_tags,
-                            replace_na,
-                            0)) %>%
-              group_by(group, origin) %>%
-              mutate(total_aged = sum(n_tags)) %>%
-              mutate(prop = n_tags / total_aged,
-                     prop_se = sqrt((prop * (1 - prop)) / total_aged)) %>%
-              ungroup() %>%
-              arrange(group, origin, age)) %>%
-  rowwise() %>%
-  mutate(est = escape * prop,
-         est_se = deltamethod(~ x1 * x2,
-                              mean = c(escape, prop),
-                              cov = diag(c(escp_se, prop_se)^2))) %>%
-  ungroup() %>%
-  select(species:origin, age, n_tags, total_aged, starts_with('prop'), starts_with("est")) %>%
-  arrange(species, spawn_year, group, origin, age)
-
-# age proportions overall
-age_summ = pop_summ %>%
-  # filter(group != "WellsPool") %>%
-  group_by(species, spawn_year, group) %>%
-  summarize(escape = sum(mean),
-            escp_se = sqrt(sum(sd^2)),
-            .groups = "drop") %>%
-  left_join(tag_summ %>%
-              group_by(group, age) %>%
-              summarise(n_tags = n_distinct(tag_code[!is.na(age)]),
-                        .groups = "drop") %>%
-              filter(!is.na(age)) %>%
-              full_join(expand(tag_summ,
-                               group,
-                               age)) %>%
-              mutate(across(n_tags,
-                            replace_na,
-                            0)) %>%
-              group_by(group) %>%
-              mutate(total_aged = sum(n_tags)) %>%
-              mutate(prop = n_tags / total_aged,
-                     prop_se = sqrt((prop * (1 - prop)) / total_aged)) %>%
-              ungroup() %>%
-              arrange(group, age)) %>%
-  rowwise() %>%
-  mutate(est = escape * prop,
-         est_se = deltamethod(~ x1 * x2,
-                              mean = c(escape, prop),
-                              cov = diag(c(escp_se, prop_se)^2))) %>%
-  ungroup() %>%
-  select(species:group, age, n_tags, total_aged, starts_with('prop'), starts_with("est")) %>%
-  arrange(species, spawn_year, group, age)
-
-# combine age summaries
-age_all_summ = age_origin_summ %>%
-  bind_rows(age_summ %>%
-              mutate(origin = "All")) %>%
-  mutate(across(origin,
-                factor,
-                levels = c("W", 'H', "All"))) %>%
-  arrange(group, origin, age) %>%
-  mutate(across(est,
-                round))
+# #------------------------------------------------------------
+# # age proportions by origin
+# age_origin_summ = pop_summ %>%
+#   # filter(group != "WellsPool") %>%
+#   select(species, spawn_year, group,
+#          origin, escape = mean, escp_se = sd) %>%
+#   left_join(tag_summ %>%
+#               group_by(group, origin, age) %>%
+#               summarise(n_tags = n_distinct(tag_code[!is.na(age)]),
+#                         .groups = "drop") %>%
+#               filter(!is.na(age)) %>%
+#               full_join(expand(tag_summ,
+#                                group,
+#                                origin, age)) %>%
+#               mutate(across(n_tags,
+#                             replace_na,
+#                             0)) %>%
+#               group_by(group, origin) %>%
+#               mutate(total_aged = sum(n_tags)) %>%
+#               mutate(prop = n_tags / total_aged,
+#                      prop_se = sqrt((prop * (1 - prop)) / total_aged)) %>%
+#               ungroup() %>%
+#               arrange(group, origin, age)) %>%
+#   rowwise() %>%
+#   mutate(est = escape * prop,
+#          est_se = deltamethod(~ x1 * x2,
+#                               mean = c(escape, prop),
+#                               cov = diag(c(escp_se, prop_se)^2))) %>%
+#   ungroup() %>%
+#   select(species:origin, age, n_tags, total_aged, starts_with('prop'), starts_with("est")) %>%
+#   arrange(species, spawn_year, group, origin, age)
+#
+# # age proportions overall
+# age_summ = pop_summ %>%
+#   # filter(group != "WellsPool") %>%
+#   group_by(species, spawn_year, group) %>%
+#   summarize(escape = sum(mean),
+#             escp_se = sqrt(sum(sd^2)),
+#             .groups = "drop") %>%
+#   left_join(tag_summ %>%
+#               group_by(group, age) %>%
+#               summarise(n_tags = n_distinct(tag_code[!is.na(age)]),
+#                         .groups = "drop") %>%
+#               filter(!is.na(age)) %>%
+#               full_join(expand(tag_summ,
+#                                group,
+#                                age)) %>%
+#               mutate(across(n_tags,
+#                             replace_na,
+#                             0)) %>%
+#               group_by(group) %>%
+#               mutate(total_aged = sum(n_tags)) %>%
+#               mutate(prop = n_tags / total_aged,
+#                      prop_se = sqrt((prop * (1 - prop)) / total_aged)) %>%
+#               ungroup() %>%
+#               arrange(group, age)) %>%
+#   rowwise() %>%
+#   mutate(est = escape * prop,
+#          est_se = deltamethod(~ x1 * x2,
+#                               mean = c(escape, prop),
+#                               cov = diag(c(escp_se, prop_se)^2))) %>%
+#   ungroup() %>%
+#   select(species:group, age, n_tags, total_aged, starts_with('prop'), starts_with("est")) %>%
+#   arrange(species, spawn_year, group, age)
+#
+# # combine age summaries
+# age_all_summ = age_origin_summ %>%
+#   bind_rows(age_summ %>%
+#               mutate(origin = "All")) %>%
+#   mutate(across(origin,
+#                 factor,
+#                 levels = c("W", 'H', "All"))) %>%
+#   arrange(group, origin, age) %>%
+#   mutate(across(est,
+#                 round))
 
 #------------------------------------------------------------
 # origin proportion based on tags observed in each branch/population
-org_summ = tag_summ %>%
-  filter(!group %in% c("Start",
-                       "Other")) %>%
-  group_by(group, origin) %>%
-  summarise(n_tags = n_distinct(tag_code),
-            .groups = "drop") %>%
-  pivot_wider(names_from = "origin",
-              values_from = "n_tags",
-              values_fill = 0) %>%
-  mutate(prop_H = H / (H + W),
-         prop_W = 1 - prop_H,
-         prop_se = sqrt((prop_W * (1 - prop_W)) / (W + H)))
+# org_summ = tag_summ %>%
+#   filter(!group %in% c("Start",
+#                        "Other")) %>%
+#   group_by(group, origin) %>%
+#   summarise(n_tags = n_distinct(tag_code),
+#             .groups = "drop") %>%
+#   pivot_wider(names_from = "origin",
+#               values_from = "n_tags",
+#               values_fill = 0) %>%
+#   mutate(prop_H = H / (H + W),
+#          prop_W = 1 - prop_H,
+#          prop_se = sqrt((prop_W * (1 - prop_W)) / (W + H)))
 
 # # origin proportion based on DABOM estimates of abundance in each branch/population
 # org_summ = pop_summ %>%
@@ -479,7 +492,7 @@ org_summ = tag_summ %>%
 #   arrange(group)
 
 # biological summaries, based on tags detected within each stream / population
-bio_list = list('Origin' = org_summ,
+bio_list = list(#'Origin' = org_summ,
                 'Sex' = sex_all_summ,
                 "Sexed Tags" = sex_all_summ %>%
                   select(-starts_with(c("prop", "est"))) %>%
@@ -487,214 +500,214 @@ bio_list = list('Origin' = org_summ,
                               values_from = "n_tags",
                               values_fill = 0,
                               names_sort = T),
-                'Age' = age_all_summ,
-                'Aged Tags' = age_all_summ %>%
-                  select(-starts_with(c("prop", "est"))) %>%
-                  pivot_wider(names_from = "age",
-                              values_from = "n_tags",
-                              values_fill = 0,
-                              names_sort = T),
+                # 'Age' = age_all_summ,
+                # 'Aged Tags' = age_all_summ %>%
+                #   select(-starts_with(c("prop", "est"))) %>%
+                #   pivot_wider(names_from = "age",
+                #               values_from = "n_tags",
+                #               values_fill = 0,
+                #               names_sort = T),
                 'Biological Summary' = full_summ)
 
 
 #-----------------------------------------------------------------
 # break down hatchery estimates by mark type
 #-----------------------------------------------------------------
-mark_tag_summ = tag_summ %>%
-  # filter(origin == "H") %>%
-  mutate(cwt = if_else(is.na(cwt), F,
-                       if_else(cwt %in% c("SN", "BD"),
-                               T, NA)),
-         ad_clip = if_else(is.na(ad_clip), F,
-                          if_else(ad_clip == "AD", T, NA))) %>%
-  mutate(ad_clip_chr = recode(as.character(ad_clip),
-                             "TRUE" = "AD",
-                             "FALSE" = "AI"),
-         cwt_chr = recode(as.character(cwt),
-                          "TRUE" = "CWT",
-                          "FALSE" = "noCWT")) %>%
-  tidyr::unite("mark_grp", ad_clip_chr, cwt_chr, remove = T) %>%
-  mutate(mark_grp = if_else(origin == "W",
-                            "Wild",
-                            mark_grp))
-
-# proportions of each type of fish (H/W, Ad-clip, CWT combinations) past each site
-mark_grp_prop = mark_tag_summ %>%
-  mutate(spawn_site = str_remove(spawn_node, "B0$"),
-         spawn_site = str_remove(spawn_site, "A0$"),
-         spawn_site = recode(spawn_site,
-                             "S" = "SA0")) %>%
-  left_join(buildPaths(parent_child) %>%
-              separate(path,
-                       into = paste("site", 1:8, sep = "_")) %>%
-              pivot_longer(starts_with('site_'),
-                           names_to = "node_order",
-                           values_to = "site_code") %>%
-              filter(!is.na(site_code)) %>%
-              select(-node_order),
-            by = c("spawn_site" = "end_loc")) %>%
-  group_by(origin, site_code, ad_clip, cwt, mark_grp) %>%
-  summarise(n_tags = n_distinct(tag_code),
-            .groups = "drop") %>%
-  right_join(crossing(site_code = union(parent_child$parent, parent_child$child),
-                      expand(mark_tag_summ, nesting(origin, ad_clip, cwt, mark_grp)))) %>%
-  arrange(site_code, mark_grp) %>%
-  mutate(across(n_tags,
-                replace_na,
-                0)) %>%
-  group_by(origin, site_code) %>%
-  mutate(tot_tags = sum(n_tags),
-         prop = n_tags / tot_tags,
-         # using normal approximation
-         prop_se = sqrt((prop * (1 - prop))/tot_tags)) %>%
-  ungroup()
-
-# generate posterior samples of mark proportions
-set.seed(6)
-n_iter = max(escape_post$iter)
-prop_samps = mark_grp_prop %>%
-  filter(tot_tags > 0) %>%
-  group_by(origin, site_code,
-           tot_tags) %>%
-  nest() %>%
-  mutate(samp = map(data,
-                     .f = function(x) {
-                       rmultinom(n_iter, sum(x$n_tags), x$prop) %>%
-                         set_colnames(1:ncol(.)) %>%
-                         set_rownames(x$mark_grp) %>%
-                         as_tibble(rownames = 'mark_grp') %>%
-                         pivot_longer(-1,
-                                      names_to = "iter",
-                                      values_to = "n_tags") %>%
-                         mutate(across(iter,
-                                       as.integer)) %>%
-                         group_by(iter) %>%
-                         mutate(prop = n_tags / sum(n_tags)) %>%
-                         arrange(iter, mark_grp) %>%
-                         ungroup()
-                     })) %>%
-  ungroup() %>%
-  select(-data) %>%
-  unnest(samp) %>%
-  left_join(mark_grp_prop %>%
-               select(-n_tags,
-                      -starts_with("prop"))) %>%
-  bind_rows(mark_grp_prop %>%
-              filter(tot_tags == 0) %>%
-              crossing(iter = 1:n_iter) %>%
-              select(-prop_se)) %>%
-  arrange(site_code, origin, mark_grp, iter) %>%
-  select(iter, any_of(names(mark_grp_prop)))
-
-# posterior samples
-mark_post = escape_post %>%
-  mutate(origin = recode(origin,
-                         "2" = "H",
-                         "1" = "W")) %>%
-  inner_join(prop_samps,
-            by = c("iter", "origin",
-                   "param" = "site_code")) %>%
-  mutate(across(c(prop,
-                  n_tags,
-                  tot_tags),
-                replace_na,
-                0)) %>%
-  mutate(prop = if_else(value == 0,
-                        0,
-                        prop)) %>%
-  mutate(n_fish = escp * prop)
-
-mark_grp_summ = mark_post %>%
-  group_by(origin,
-           location = param,
-           ad_clip,
-           cwt,
-           mark_grp) %>%
-  summarise(across(n_fish,
-                   list(mean = mean,
-                        median = median,
-                        mode = estMode,
-                        se = sd,
-                        skew = moments::skewness,
-                        kurtosis = moments::kurtosis,
-                        lowerCI = ~ coda::HPDinterval(coda::as.mcmc(.x))[,1],
-                        upperCI = ~ coda::HPDinterval(coda::as.mcmc(.x))[,2]),
-                   na.rm = T,
-                   .names = "{.fn}"),
-            .groups = "drop") %>%
-  mutate(across(mode,
-                ~ if_else(. < 0, 0, .))) %>%
-  left_join(mark_grp_prop %>%
-              rename(location = site_code,
-                     proportion = prop)) %>%
-  select(origin:mark_grp,
-         n_tags:proportion,
-         prop_se,
-         everything()) %>%
-  arrange(location, mark_grp)
-
-pop_mark_grp = mark_grp_summ %>%
-  filter(location %in% c("LWE", 'ENL', 'LMR', 'OKL')) %>%
-  mutate(population = recode(location,
-                             'LWE' = 'Wenatchee',
-                             'ENL' = 'Entiat',
-                             'LMR' = 'Methow',
-                             'OKL' = 'Okanogan'),
-         population = factor(population,
-                             levels = c('Wenatchee',
-                                        'Entiat',
-                                        'Methow',
-                                        'Okanogan'))) %>%
-  arrange(population, mark_grp) %>%
-  select(origin, population, everything(), -location)
-
-# biological summary that includes mark group
-mark_grp_bio_summ = mark_tag_summ %>%
-  group_by(group,
-           mark_grp,
-           origin,
-           sex,
-           age) %>%
-  summarise(n_tags = n_distinct(tag_code),
-            mean_FL = mean(fork_length, na.rm = T),
-            sd_FL = sd(fork_length, na.rm = T),
-            .groups = "drop") %>%
-  full_join(expand(mark_tag_summ,
-                   group,
-                   nesting(mark_grp, origin),
-                   nesting(sex, age))) %>%
-  mutate(across(n_tags,
-                replace_na,
-                0)) %>%
-  group_by(group, origin, mark_grp) %>%
-  mutate(tot_tags = sum(n_tags)) %>%
-  ungroup() %>%
-  mutate(prop = n_tags / tot_tags,
-         prop_se = sqrt((prop * (1 - prop)) / (tot_tags))) %>%
-  arrange(group, origin, mark_grp, sex, age)
-
-mark_grp_list = list('Mark Group Population' = pop_mark_grp %>%
-                       select(-skew, -kurtosis) %>%
-                       mutate_at(vars(mean:mode),
-                                 list(round),
-                                 digits = 0) %>%
-                       mutate_at(vars(se:upperCI),
-                                 list(round),
-                                 digits = 1) %>%
-                       rename(estimate = mean) %>%
-                       select(-median, -mode),
-                     'Mark Group Site Escapement' = mark_grp_summ %>%
-                       select(-skew, -kurtosis) %>%
-                       mutate_at(vars(mean:mode),
-                                 list(round),
-                                 digits = 0) %>%
-                       mutate_at(vars(se:upperCI),
-                                 list(round),
-                                 digits = 1) %>%
-                       rename(estimate = mean) %>%
-                       select(-median, -mode),
-                     'Mark Group Tag Summary' = mark_tag_summ,
-                     'Mark Group Bio Summary' = mark_grp_bio_summ)
+# mark_tag_summ = tag_summ %>%
+#   # filter(origin == "H") %>%
+#   mutate(cwt = if_else(is.na(cwt), F,
+#                        if_else(cwt %in% c("SN", "BD"),
+#                                T, NA)),
+#          ad_clip = if_else(is.na(ad_clip), F,
+#                           if_else(ad_clip == "AD", T, NA))) %>%
+#   mutate(ad_clip_chr = recode(as.character(ad_clip),
+#                              "TRUE" = "AD",
+#                              "FALSE" = "AI"),
+#          cwt_chr = recode(as.character(cwt),
+#                           "TRUE" = "CWT",
+#                           "FALSE" = "noCWT")) %>%
+#   tidyr::unite("mark_grp", ad_clip_chr, cwt_chr, remove = T) %>%
+#   mutate(mark_grp = if_else(origin == "W",
+#                             "Wild",
+#                             mark_grp))
+#
+# # proportions of each type of fish (H/W, Ad-clip, CWT combinations) past each site
+# mark_grp_prop = mark_tag_summ %>%
+#   mutate(spawn_site = str_remove(spawn_node, "B0$"),
+#          spawn_site = str_remove(spawn_site, "A0$"),
+#          spawn_site = recode(spawn_site,
+#                              "S" = "SA0")) %>%
+#   left_join(buildPaths(parent_child) %>%
+#               separate(path,
+#                        into = paste("site", 1:8, sep = "_")) %>%
+#               pivot_longer(starts_with('site_'),
+#                            names_to = "node_order",
+#                            values_to = "site_code") %>%
+#               filter(!is.na(site_code)) %>%
+#               select(-node_order),
+#             by = c("spawn_site" = "end_loc")) %>%
+#   group_by(origin, site_code, ad_clip, cwt, mark_grp) %>%
+#   summarise(n_tags = n_distinct(tag_code),
+#             .groups = "drop") %>%
+#   right_join(crossing(site_code = union(parent_child$parent, parent_child$child),
+#                       expand(mark_tag_summ, nesting(origin, ad_clip, cwt, mark_grp)))) %>%
+#   arrange(site_code, mark_grp) %>%
+#   mutate(across(n_tags,
+#                 replace_na,
+#                 0)) %>%
+#   group_by(origin, site_code) %>%
+#   mutate(tot_tags = sum(n_tags),
+#          prop = n_tags / tot_tags,
+#          # using normal approximation
+#          prop_se = sqrt((prop * (1 - prop))/tot_tags)) %>%
+#   ungroup()
+#
+# # generate posterior samples of mark proportions
+# set.seed(6)
+# n_iter = max(escape_post$iter)
+# prop_samps = mark_grp_prop %>%
+#   filter(tot_tags > 0) %>%
+#   group_by(origin, site_code,
+#            tot_tags) %>%
+#   nest() %>%
+#   mutate(samp = map(data,
+#                      .f = function(x) {
+#                        rmultinom(n_iter, sum(x$n_tags), x$prop) %>%
+#                          set_colnames(1:ncol(.)) %>%
+#                          set_rownames(x$mark_grp) %>%
+#                          as_tibble(rownames = 'mark_grp') %>%
+#                          pivot_longer(-1,
+#                                       names_to = "iter",
+#                                       values_to = "n_tags") %>%
+#                          mutate(across(iter,
+#                                        as.integer)) %>%
+#                          group_by(iter) %>%
+#                          mutate(prop = n_tags / sum(n_tags)) %>%
+#                          arrange(iter, mark_grp) %>%
+#                          ungroup()
+#                      })) %>%
+#   ungroup() %>%
+#   select(-data) %>%
+#   unnest(samp) %>%
+#   left_join(mark_grp_prop %>%
+#                select(-n_tags,
+#                       -starts_with("prop"))) %>%
+#   bind_rows(mark_grp_prop %>%
+#               filter(tot_tags == 0) %>%
+#               crossing(iter = 1:n_iter) %>%
+#               select(-prop_se)) %>%
+#   arrange(site_code, origin, mark_grp, iter) %>%
+#   select(iter, any_of(names(mark_grp_prop)))
+#
+# # posterior samples
+# mark_post = escape_post %>%
+#   mutate(origin = recode(origin,
+#                          "2" = "H",
+#                          "1" = "W")) %>%
+#   inner_join(prop_samps,
+#             by = c("iter", "origin",
+#                    "param" = "site_code")) %>%
+#   mutate(across(c(prop,
+#                   n_tags,
+#                   tot_tags),
+#                 replace_na,
+#                 0)) %>%
+#   mutate(prop = if_else(value == 0,
+#                         0,
+#                         prop)) %>%
+#   mutate(n_fish = escp * prop)
+#
+# mark_grp_summ = mark_post %>%
+#   group_by(origin,
+#            location = param,
+#            ad_clip,
+#            cwt,
+#            mark_grp) %>%
+#   summarise(across(n_fish,
+#                    list(mean = mean,
+#                         median = median,
+#                         mode = estMode,
+#                         se = sd,
+#                         skew = moments::skewness,
+#                         kurtosis = moments::kurtosis,
+#                         lowerCI = ~ coda::HPDinterval(coda::as.mcmc(.x))[,1],
+#                         upperCI = ~ coda::HPDinterval(coda::as.mcmc(.x))[,2]),
+#                    na.rm = T,
+#                    .names = "{.fn}"),
+#             .groups = "drop") %>%
+#   mutate(across(mode,
+#                 ~ if_else(. < 0, 0, .))) %>%
+#   left_join(mark_grp_prop %>%
+#               rename(location = site_code,
+#                      proportion = prop)) %>%
+#   select(origin:mark_grp,
+#          n_tags:proportion,
+#          prop_se,
+#          everything()) %>%
+#   arrange(location, mark_grp)
+#
+# pop_mark_grp = mark_grp_summ %>%
+#   filter(location %in% c("LWE", 'ENL', 'LMR', 'OKL')) %>%
+#   mutate(population = recode(location,
+#                              'LWE' = 'Wenatchee',
+#                              'ENL' = 'Entiat',
+#                              'LMR' = 'Methow',
+#                              'OKL' = 'Okanogan'),
+#          population = factor(population,
+#                              levels = c('Wenatchee',
+#                                         'Entiat',
+#                                         'Methow',
+#                                         'Okanogan'))) %>%
+#   arrange(population, mark_grp) %>%
+#   select(origin, population, everything(), -location)
+#
+# # biological summary that includes mark group
+# mark_grp_bio_summ = mark_tag_summ %>%
+#   group_by(group,
+#            mark_grp,
+#            origin,
+#            sex,
+#            age) %>%
+#   summarise(n_tags = n_distinct(tag_code),
+#             mean_FL = mean(fork_length, na.rm = T),
+#             sd_FL = sd(fork_length, na.rm = T),
+#             .groups = "drop") %>%
+#   full_join(expand(mark_tag_summ,
+#                    group,
+#                    nesting(mark_grp, origin),
+#                    nesting(sex, age))) %>%
+#   mutate(across(n_tags,
+#                 replace_na,
+#                 0)) %>%
+#   group_by(group, origin, mark_grp) %>%
+#   mutate(tot_tags = sum(n_tags)) %>%
+#   ungroup() %>%
+#   mutate(prop = n_tags / tot_tags,
+#          prop_se = sqrt((prop * (1 - prop)) / (tot_tags))) %>%
+#   arrange(group, origin, mark_grp, sex, age)
+#
+# mark_grp_list = list('Mark Group Population' = pop_mark_grp %>%
+#                        select(-skew, -kurtosis) %>%
+#                        mutate_at(vars(mean:mode),
+#                                  list(round),
+#                                  digits = 0) %>%
+#                        mutate_at(vars(se:upperCI),
+#                                  list(round),
+#                                  digits = 1) %>%
+#                        rename(estimate = mean) %>%
+#                        select(-median, -mode),
+#                      'Mark Group Site Escapement' = mark_grp_summ %>%
+#                        select(-skew, -kurtosis) %>%
+#                        mutate_at(vars(mean:mode),
+#                                  list(round),
+#                                  digits = 0) %>%
+#                        mutate_at(vars(se:upperCI),
+#                                  list(round),
+#                                  digits = 1) %>%
+#                        rename(estimate = mean) %>%
+#                        select(-median, -mode),
+#                      'Mark Group Tag Summary' = mark_tag_summ,
+#                      'Mark Group Bio Summary' = mark_grp_bio_summ)
 
 #-----------------------------------------------------------------
 # write results to an Excel file
@@ -722,9 +735,20 @@ save_list = c(list('Population Escapement' = pop_summ %>%
                             se = sd) %>%
                      select(-median, -mode),
                    'Tag Summary' = tag_summ),
-              bio_list,
-              mark_grp_list)
+              bio_list)
 
+# filter for only hatchery results, drop origin as a column
+save_list %>%
+  map(.f = function(x) {
+    if("origin" %in% names(x)) {
+      x %<>%
+        filter(origin == "H") %>%
+        select(-origin)
+    }
+    return(x)
+  })
+
+# save results as an Excel file
 writexl::write_xlsx(x = save_list,
                     path = here('outgoing/estimates',
                                 paste0('UC_Coho_', yr, '_', format(Sys.Date(), '%Y%m%d'), '.xlsx')))
