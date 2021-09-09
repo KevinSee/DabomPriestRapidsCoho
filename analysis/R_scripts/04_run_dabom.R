@@ -22,7 +22,7 @@ load(here('analysis/data/derived_data/site_config.rda'))
 # Load required DABOM data
 #-----------------------------------------------------------------
 # set year
-yr = 2020
+yr = 2019
 
 # for(yr in 2019:2020) {
 #   cat(paste("Working on", yr, "\n\n"))
