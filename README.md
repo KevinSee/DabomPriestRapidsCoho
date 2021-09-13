@@ -1,6 +1,8 @@
 
 <!-- README.md is generated from README.Rmd. Please edit that file -->
 
+This is a test.
+
 # DabomPriestRapidsCoho
 
 [![Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/BiomarkABS/DabomPriestRapidsCoho/master?urlpath=rstudio)
@@ -23,7 +25,7 @@ paper:
 Please cite this compendium as:
 
 > See, K.E., (2021). \_Compendium of R code and data for Upper Columbia
-> DABOM Coho Accessed 11 Jun 2021.
+> DABOM Coho Accessed 13 Sep 2021.
 
 ## Contents
 
