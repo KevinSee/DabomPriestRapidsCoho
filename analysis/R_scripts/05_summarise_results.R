@@ -1,7 +1,7 @@
 # Author: Kevin See
 # Purpose: summarize DABOM results
 # Created: 4/1/20
-# Last Modified: 9/9/21
+# Last Modified: 9/21/21
 # Notes:
 
 #-----------------------------------------------------------------
@@ -20,7 +20,7 @@ library(here)
 
 #-----------------------------------------------------------------
 # set year
-yr = 2019
+yr = 2020
 
 #-----------------------------------------------------------------
 # load configuration and site_df data
@@ -746,6 +746,13 @@ save_list %<>%
     return(x)
   })
 
+#-----------------------------------------------------------------
+# save results as .rds object
+write_rds(save_list,
+          file = here('analysis/data/derived_data/results',
+                      paste0("PRA_Coho_estimates_", yr, ".rds")))
+
+#-----------------------------------------------------------------
 # save results as an Excel file
 writexl::write_xlsx(x = save_list,
                     path = here('analysis/outgoing/estimates',
