@@ -1,7 +1,7 @@
 # Author: Kevin See
 # Purpose: summarize DABOM results
 # Created: 4/1/20
-# Last Modified: 9/21/21
+# Last Modified: 9/23/21
 # Notes:
 
 #-----------------------------------------------------------------
@@ -114,10 +114,10 @@ trans_df %<>%
 # # summarize transition probabilities
 # trans_summ = trans_df %>%
 #   group_by(origin, param) %>%
-#   summarise(mean = mean(value),
-#             median = median(value),
-#             mode = estMode(value),
-#             sd = sd(value),
+  # summarise(mean = mean(value),
+  #           median = median(value),
+  #           mode = estMode(value),
+  #           sd = sd(value),
 #             skew = moments::skewness(value),
 #             kurtosis = moments::kurtosis(value),
 #             lowerCI = coda::HPDinterval(coda::as.mcmc(value))[,1],
@@ -126,11 +126,62 @@ trans_df %<>%
 #   mutate(across(c(mean, median, mode, sd, matches('CI$')),
 #                 ~ if_else(. < 0, 0, .)))
 
+# #-----------------------------------------------------------------
+# # total escapement past Priest, by origin
+# start_date = paste0(yr, '0801')
+# end_date = paste0(yr, '1231')
+#
+#
+# # start with PIT-tag based reascension data
+# org_escape = queryPITtagData(damPIT = 'PRA',
+#                              spp = "Coho",
+#                              start_date = start_date,
+#                              end_date = end_date) %>%
+#   mutate(SpawnYear = yr) %>%
+#   mutate(across(TagIdAscentCount,
+#                 tidyr::replace_na,
+#                 0)) %>%
+#   mutate(ReAscent = ifelse(TagIdAscentCount > 1, T, F)) %>%
+#   group_by(Species, SpawnYear, Date) %>%
+#   summarise(tot_tags = n_distinct(TagId),
+#             reascent_tags = n_distinct(TagId[ReAscent]),
+#             .groups = "drop") %>%
+#   group_by(Species, SpawnYear) %>%
+#   summarise(across(matches('tags'),
+#                    sum,
+#                    na.rm = T),
+#             .groups = "drop") %>%
+#   mutate(reasc_rate = reascent_tags / tot_tags,
+#          reasc_rate_se = sqrt(reasc_rate * (1 - reasc_rate) / tot_tags)) %>%
+#   # add window counts
+#   bind_cols(getWindowCounts(dam = 'PRD',
+#                             spp = "Coho",
+#                             start_date = start_date,
+#                             end_date = end_date) %>%
+#               summarise_at(vars(win_cnt),
+#                            list(sum),
+#                            na.rm = T) %>%
+#               select(tot_win_cnt = win_cnt)) %>%
+#   mutate(adj_win_cnt = tot_win_cnt * (1 - reasc_rate),
+#          adj_win_cnt_se = tot_win_cnt * reasc_rate_se) %>%
+#   bind_cols(bio_df %>%
+#               group_by(origin) %>%
+#               summarise(n_tags = n_distinct(tag_code),
+#                         .groups = "drop") %>%
+#               mutate(prop = n_tags / sum(n_tags),
+#                      prop_se = sqrt((prop * (1 - prop)) / sum(n_tags)))) %>%
+#   rowwise() %>%
+#   mutate(tot_escp = adj_win_cnt * prop,
+#          tot_escp_se = msm::deltamethod(~ x1 * x2,
+#                                         mean = c(adj_win_cnt, prop),
+#                                         cov = diag(c(adj_win_cnt_se, prop_se)^2))) %>%
+#   select(Species, SpawnYear, origin, matches('escp'))
+
 #-----------------------------------------------------------------
-# total escapement past Priest, by origin
+# total escapement past Rock Island, by origin
+# Use Rock Island rather than Priest because data is better, back transform to estimate Priest escapement
 start_date = paste0(yr, '0801')
 end_date = paste0(yr, '1231')
-
 
 # start with PIT-tag based reascension data
 org_escape = queryPITtagData(damPIT = 'PRA',
@@ -153,24 +204,37 @@ org_escape = queryPITtagData(damPIT = 'PRA',
             .groups = "drop") %>%
   mutate(reasc_rate = reascent_tags / tot_tags,
          reasc_rate_se = sqrt(reasc_rate * (1 - reasc_rate) / tot_tags)) %>%
-  # add window counts
-  bind_cols(getWindowCounts(dam = 'PRD',
+  # add window counts from Rock Island
+  bind_cols(getWindowCounts(dam = 'RIS',
                             spp = "Coho",
                             start_date = start_date,
                             end_date = end_date) %>%
               summarise_at(vars(win_cnt),
                            list(sum),
                            na.rm = T) %>%
-              select(tot_win_cnt = win_cnt)) %>%
-  mutate(adj_win_cnt = tot_win_cnt * (1 - reasc_rate),
-         adj_win_cnt_se = tot_win_cnt * reasc_rate_se) %>%
+              select(RIS_win_cnt = win_cnt)) %>%
   bind_cols(bio_df %>%
               group_by(origin) %>%
               summarise(n_tags = n_distinct(tag_code),
                         .groups = "drop") %>%
               mutate(prop = n_tags / sum(n_tags),
                      prop_se = sqrt((prop * (1 - prop)) / sum(n_tags)))) %>%
+  left_join(trans_df %>%
+              filter(param %in% c("RIA")) %>%
+              group_by(origin) %>%
+              summarise(mean = mean(value),
+                        median = median(value),
+                        sd = sd(value))) %>%
   rowwise() %>%
+  mutate(adj_win_cnt = RIS_win_cnt / mean * (1 - reasc_rate),
+         adj_win_cnt_se = msm::deltamethod(~ x1 / x2 * (1 - x3),
+                                           mean = c(RIS_win_cnt,
+                                                    mean,
+                                                    reasc_rate),
+                                           cov = diag(c(0,
+                                                        # sd,
+                                                        0,
+                                                        reasc_rate_se)^2))) %>%
   mutate(tot_escp = adj_win_cnt * prop,
          tot_escp_se = msm::deltamethod(~ x1 * x2,
                                         mean = c(adj_win_cnt, prop),
