@@ -23,17 +23,19 @@ paper:
 Please cite this compendium as:
 
 > See, K.E., (2021). \_Compendium of R code and data for Upper Columbia
-> DABOM Coho Accessed 13 Sep 2021.
+> DABOM Coho Accessed 14 Oct 2021.
 
 ## Contents
 
 The **analysis** directory contains:
 
   - [:file\_folder: data](/analysis/data): Data used in the analysis.
-  - [:file\_folder: R\_scripts](/analysis/R_scripts): R scripts run as
-    part of these analyses.
   - [:file\_folder: figures](/analysis/figures): Plots and other
     illustrations
+  - [:file\_folder: model\_files](/analysis/model_files): JAGS model
+    files
+  - [:file\_folder: R\_scripts](/analysis/R_scripts): R scripts run as
+    part of these analyses.
   - [:file\_folder:
     supplementary-materials](/analysis/supplementary-materials):
     Supplementary materials including notes and other documents prepared
@@ -68,9 +70,7 @@ You can download the compendium as a zip from from this URL:
 [master.zip](/archive/master.zip). After unzipping: - open the `.Rproj`
 file in RStudio - run `devtools::install()` to ensure you have the
 packages this analysis depends on (also listed in the
-[DESCRIPTION](/DESCRIPTION) file). - finally, open
-`analysis/paper/paper.Rmd` and knit to produce the `paper.docx`, or run
-`rmarkdown::render("analysis/paper/paper.Rmd")` in the R console
+[DESCRIPTION](/DESCRIPTION) file).
 
 ### Licenses
 
