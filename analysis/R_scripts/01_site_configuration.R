@@ -65,7 +65,7 @@ configuration = org_config %>%
   mutate(node = if_else(site_code %in% c('RIA', 'RRF', 'WEA', 'PRV'),
                         site_code,
                         node)) %>%
-  mutate(node = if_else(site_code == 'PRDLD1',
+  mutate(node = if_else(site_code %in% c("PRD", 'PRDLD1'),
                         'PRA',
                         node)) %>%
   mutate(node = if_else(node == "LWE",
