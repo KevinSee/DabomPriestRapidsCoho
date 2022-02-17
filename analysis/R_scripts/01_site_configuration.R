@@ -18,9 +18,9 @@ install.packages(c("tidyverse",
                    "moments",
                    "coda"))
 
-devtools::install_github("BiomarkABS/STADEM")
-devtools::install_github("BiomarkABS/PITcleanr")
-devtools::install_github("BiomarkABS/DABOM")
+devtools::install_github("KevinSee/STADEM")
+devtools::install_github("KevinSee/PITcleanr")
+devtools::install_github("KevinSee/DABOM")
 
 #-----------------------------------------------------------------
 # load needed libraries
